@@ -34,7 +34,7 @@ module API
       module EagerLoading
         class Ancestor < Base
           def apply(work_package)
-            work_package.work_package_ancestors = ancestors[work_package.id] || []
+            work_package.work_package_ancestors = ancestors[work_package.id]
           end
 
           private

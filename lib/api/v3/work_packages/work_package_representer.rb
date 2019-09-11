@@ -296,14 +296,7 @@ module API
 
         links :children,
               uncacheable: true do
-          next if visible_children.empty?
-
-          visible_children.map do |child|
-            {
-              href: api_v3_paths.work_package(child.id),
-              title: child.subject
-            }
-          end
+          OpenProject::ToJsonNoOp.new(represented.visible_children_json)
         end
 
         links :ancestors,

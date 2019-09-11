@@ -32,6 +32,10 @@ module API
   module V3
     module WorkPackages
       class WorkPackageEagerLoadingWrapper < API::V3::Utilities::EagerLoading::EagerLoadingWrapper
+        private_class_method :new
+
+        attr_accessor :visible_children_json
+
         def wrapped?
           true
         end
@@ -40,21 +44,21 @@ module API
           def wrap(ids_in_order, current_user)
             work_packages = add_eager_loading(WorkPackage.where(id: ids_in_order), current_user).to_a
 
-            wrap_and_apply(work_packages, eager_loader_classes_all)
+            wrap_and_apply(work_packages)
               .sort_by { |wp| ids_in_order.index(wp.id) }
           end
 
           def wrap_one(work_package, _current_user)
             return work_package if work_package.respond_to?(:wrapped?)
 
-            wrap_and_apply([work_package], eager_loader_classes_all)
+            wrap_and_apply([work_package])
               .first
           end
 
           private
 
-          def wrap_and_apply(work_packages, container_classes)
-            containers = container_classes
+          def wrap_and_apply(work_packages)
+            containers = eager_loader_classes_all
                          .map { |klass| klass.new(work_packages) }
 
             work_packages = work_packages.map do |work_package|

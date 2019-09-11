@@ -36,10 +36,6 @@ module API
           def apply(work_package)
             work_package.project = project_for(work_package.project_id)
             work_package.parent.project = project_for(work_package.parent.project_id) if work_package.parent
-
-            work_package.children.each do |child|
-              child.project = project_for(child.project_id)
-            end
           end
 
           private
@@ -61,8 +57,7 @@ module API
 
           def project_ids
             work_packages.map do |work_package|
-              [work_package.project_id, work_package.parent && work_package.parent.project_id] +
-                work_package.children.map(&:project_id)
+              [work_package.project_id, work_package.parent&.project_id]
             end.flatten.uniq.compact
           end
         end
