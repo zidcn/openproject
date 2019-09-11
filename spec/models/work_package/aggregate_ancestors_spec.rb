@@ -29,44 +29,46 @@
 require 'spec_helper'
 
 describe WorkPackage::Ancestors, type: :model do
+  include API::V3::Utilities::PathHelper
+
   let(:user) { FactoryBot.create(:user) }
   let(:project) { FactoryBot.create :project }
   let(:project2) { FactoryBot.create :project }
 
   let!(:root_work_package) do
     FactoryBot.create :work_package,
-                       project: project
+                      project: project
   end
 
   let!(:intermediate) do
     FactoryBot.create :work_package,
-                       parent: root_work_package,
-                       project: project
+                      parent: root_work_package,
+                      project: project
   end
   let!(:intermediate_project2) do
     FactoryBot.create :work_package,
-                       parent: root_work_package,
-                       project: project2
+                      parent: root_work_package,
+                      project: project2
   end
   let!(:leaf) do
     FactoryBot.create :work_package,
-                       parent: intermediate,
-                       project: project
+                      parent: intermediate,
+                      project: project
   end
   let!(:leaf_project2) do
     FactoryBot.create :work_package,
-                       parent: intermediate_project2,
-                       project: project
+                      parent: intermediate_project2,
+                      project: project
   end
 
   let(:view_role) do
     FactoryBot.build(:role,
-                      permissions: [:view_work_packages])
+                     permissions: [:view_work_packages])
   end
 
   let(:none_role) do
     FactoryBot.build(:role,
-                      permissions: [])
+                     permissions: [])
   end
 
   let(:leaf_ids) { [leaf.id, leaf_project2.id] }
@@ -79,17 +81,26 @@ describe WorkPackage::Ancestors, type: :model do
     login_as(user)
   end
 
+  def to_json_array(*work_packages)
+     work_packages.map do |wp|
+      {
+        href: api_v3_paths.work_package(wp.id),
+        title: wp.subject
+      }
+    end.to_json
+  end
+
   context 'with permission in the first project' do
     before do
       FactoryBot.create :member,
-                         user: user,
-                         project: project,
-                         roles: [view_role]
+                        user: user,
+                        project: project,
+                        roles: [view_role]
     end
 
     describe 'fetching from db' do
       it 'returns the same results' do
-        expect(leaf.visible_ancestors(user)).to eq([root_work_package, intermediate])
+        expect(leaf.visible_ancestors(user)).to be_json_eql(to_json_array(root_work_package, intermediate))
       end
     end
 
@@ -100,8 +111,8 @@ describe WorkPackage::Ancestors, type: :model do
         expect(subject).to be_kind_of(Hash)
         expect(subject.keys.length).to eq(2)
 
-        expect(subject[leaf.id]).to eq([root_work_package, intermediate])
-        expect(subject[leaf_project2.id]).to eq([root_work_package])
+        expect(subject[leaf.id]).to be_json_eql(to_json_array(root_work_package, intermediate))
+        expect(subject[leaf_project2.id]).to be_json_eql(to_json_array(root_work_package))
       end
     end
 
@@ -112,17 +123,17 @@ describe WorkPackage::Ancestors, type: :model do
         expect(subject).to be_kind_of(Hash)
         expect(subject.keys.length).to eq(2)
 
-        expect(subject[intermediate.id]).to eq([root_work_package])
-        expect(subject[intermediate_project2.id]).to eq([root_work_package])
+        expect(subject[intermediate.id]).to be_json_eql(to_json_array(root_work_package))
+        expect(subject[intermediate_project2.id]).to be_json_eql(to_json_array(root_work_package))
       end
     end
 
     context 'and permission in second project' do
       before do
         FactoryBot.create :member,
-                           user: user,
-                           project: project2,
-                           roles: [view_role]
+                          user: user,
+                          project: project2,
+                          roles: [view_role]
       end
 
       describe 'leaf ids' do
@@ -132,8 +143,8 @@ describe WorkPackage::Ancestors, type: :model do
           expect(subject).to be_kind_of(Hash)
           expect(subject.keys.length).to eq(2)
 
-          expect(subject[leaf.id]).to eq([root_work_package, intermediate])
-          expect(subject[leaf_project2.id]).to eq([root_work_package, intermediate_project2])
+          expect(subject[leaf.id]).to be_json_eql(to_json_array(root_work_package, intermediate))
+          expect(subject[leaf_project2.id]).to be_json_eql(to_json_array(root_work_package, intermediate_project2))
         end
       end
     end
@@ -142,9 +153,9 @@ describe WorkPackage::Ancestors, type: :model do
   context 'no permissions' do
     before do
       FactoryBot.create :member,
-                         user: user,
-                         project: project,
-                         roles: [none_role]
+                        user: user,
+                        project: project,
+                        roles: [none_role]
     end
 
     describe 'leaf ids' do

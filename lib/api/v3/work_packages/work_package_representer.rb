@@ -308,12 +308,7 @@ module API
 
         links :ancestors,
               uncacheable: true do
-          represented.visible_ancestors(current_user).map do |ancestor|
-            {
-              href: api_v3_paths.work_package(ancestor.id),
-              title: ancestor.subject
-            }
-          end
+          OpenProject::ToJsonNoOp.new(represented.visible_ancestors(current_user))
         end
 
         property :id,

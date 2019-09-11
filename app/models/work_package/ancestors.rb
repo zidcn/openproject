@@ -64,24 +64,39 @@ module WorkPackage::Ancestors
 
     def results
       default = Hash.new do |hash, id|
-        hash[id] = []
+        hash[id] = '[]'
       end
 
-      results = with_work_package_ancestors
-                .map { |wp| [wp.id, wp.ancestors] }
-                .to_h
-
-      default.merge(results)
+      default.merge(with_work_package_ancestors)
     end
 
     private
 
     def with_work_package_ancestors
-      WorkPackage
-        .where(id: @ids)
-        .includes(:ancestors)
-        .where(ancestors_work_packages: { project_id: Project.allowed_to(user, :view_work_packages) })
-        .order(Arel.sql('relations.hierarchy DESC'))
+      sql = <<-SQL
+        SELECT id, json_agg(ancestor_hash)
+        FROM
+        (
+        SELECT relations.to_id AS id, json_build_object('href', '/api/v3/work_packages/' || ancestors.id,
+                                                        'title', ancestors.subject) AS ancestor_hash
+        FROM relations
+        JOIN work_packages ancestors ON
+          ancestors.id = relations.from_id
+          AND relations.hierarchy > 0
+          AND relations.blocks = 0
+          AND relations.follows = 0
+          AND relations.relates = 0
+          AND relations.includes = 0
+          AND relations.duplicates = 0
+          AND relations.requires = 0
+        WHERE ancestors.project_id IN (#{Project.allowed_to(User.current, :view_work_packages).select(:id).to_sql})
+        AND relations.to_id IN (#{Array(@ids).join(', ')})
+        ORDER BY hierarchy DESC
+        ) ancestors_by_id
+        GROUP BY id
+      SQL
+
+      ActiveRecord::Base.connection.select_all(sql).to_a.map(&:values).to_h
     end
   end
 end
