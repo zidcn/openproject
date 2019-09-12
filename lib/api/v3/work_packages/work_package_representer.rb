@@ -51,151 +51,6 @@ module API
 
         self_link title_getter: ->(*) { represented.subject }
 
-        link :copy,
-             cache_if: -> { current_user_allowed_to(:add_work_packages, context: represented.project) } do
-
-          next if represented.new_record?
-
-          {
-            href: work_package_path(represented, 'copy'),
-            title: "Copy #{represented.subject}"
-          }
-        end
-
-        link :pdf,
-             cache_if: -> { current_user_allowed_to(:export_work_packages, context: represented.project) } do
-          next if represented.new_record?
-
-          {
-            href: work_package_path(id: represented.id, format: :pdf),
-            type: 'application/pdf',
-            title: 'Export as PDF'
-          }
-        end
-
-        link :atom,
-             cache_if: -> { current_user_allowed_to(:export_work_packages, context: represented.project) } do
-          next if represented.new_record? || !Setting.feeds_enabled?
-
-          {
-            href: work_package_path(id: represented.id, format: :atom),
-            type: 'application/rss+xml',
-            title: 'Atom feed'
-          }
-        end
-
-        link :availableRelationCandidates do
-          next if represented.new_record?
-
-          {
-            href: api_v3_paths.work_package_available_relation_candidates(represented.id),
-            title: "Potential work packages to relate to"
-          }
-        end
-
-        link :customFields,
-             cache_if: -> { current_user_allowed_to(:edit_project, context: represented.project) } do
-          next if represented.project.nil?
-
-          {
-            href: settings_project_path(represented.project.identifier, tab: 'custom_fields'),
-            type: 'text/html',
-            title: "Custom fields"
-          }
-        end
-
-        link :configureForm,
-             cache_if: -> { current_user.admin? } do
-          next unless represented.type_id
-
-          {
-            href: edit_type_path(represented.type_id, tab: 'form_configuration'),
-            type: 'text/html',
-            title: "Configure form"
-          }
-        end
-
-        link :activities do
-          {
-            href: api_v3_paths.work_package_activities(represented.id)
-          }
-        end
-
-        link :availableWatchers,
-             cache_if: -> { current_user_allowed_to(:add_work_package_watchers, context: represented.project) } do
-          {
-            href: api_v3_paths.available_watchers(represented.id)
-          }
-        end
-
-        link :relations do
-          {
-            href: api_v3_paths.work_package_relations(represented.id)
-          }
-        end
-
-        link :revisions do
-          {
-            href: api_v3_paths.work_package_revisions(represented.id)
-          }
-        end
-
-        link :watch,
-             uncacheable: true do
-          next if current_user.anonymous? || current_user_watcher?
-
-          {
-            href: api_v3_paths.work_package_watchers(represented.id),
-            method: :post,
-            payload: { user: { href: api_v3_paths.user(current_user.id) } }
-          }
-        end
-
-        link :unwatch,
-             uncacheable: true do
-          next unless current_user_watcher?
-
-          {
-            href: api_v3_paths.watcher(current_user.id, represented.id),
-            method: :delete
-          }
-        end
-
-        link :watchers,
-             cache_if: -> { current_user_allowed_to(:view_work_package_watchers, context: represented.project) } do
-          {
-            href: api_v3_paths.work_package_watchers(represented.id)
-          }
-        end
-
-        link :addWatcher,
-             cache_if: -> { current_user_allowed_to(:add_work_package_watchers, context: represented.project) } do
-          {
-            href: api_v3_paths.work_package_watchers(represented.id),
-            method: :post,
-            payload: { user: { href: api_v3_paths.user('{user_id}') } },
-            templated: true
-          }
-        end
-
-        link :removeWatcher,
-             cache_if: -> { current_user_allowed_to(:delete_work_package_watchers, context: represented.project) } do
-          {
-            href: api_v3_paths.watcher('{user_id}', represented.id),
-            method: :delete,
-            templated: true
-          }
-        end
-
-        link :addRelation,
-             cache_if: -> { current_user_allowed_to(:manage_work_package_relations, context: represented.project) } do
-          {
-            href: api_v3_paths.work_package_relations(represented.id),
-            method: :post,
-            title: 'Add relation'
-          }
-        end
-
         link :addChild,
              cache_if: -> { current_user_allowed_to(:add_work_packages, context: represented.project) } do
           next if represented.milestone? || represented.new_record?
@@ -204,42 +59,6 @@ module API
             href: api_v3_paths.work_packages_by_project(represented.project.identifier),
             method: :post,
             title: "Add child of #{represented.subject}"
-          }
-        end
-
-        link :changeParent,
-             cache_if: -> { current_user_allowed_to(:manage_subtasks, context: represented.project) } do
-          {
-            href: api_v3_paths.work_package(represented.id),
-            method: :patch,
-            title: "Change parent of #{represented.subject}"
-          }
-        end
-
-        link :addComment,
-             cache_if: -> { current_user_allowed_to(:add_work_package_notes, context: represented.project) } do
-          {
-            href: api_v3_paths.work_package_activities(represented.id),
-            method: :post,
-            title: 'Add comment'
-          }
-        end
-
-        link :previewMarkup do
-          {
-            href: api_v3_paths.render_markup(link: api_v3_paths.work_package(represented.id)),
-            method: :post
-          }
-        end
-
-        link :timeEntries,
-             cache_if: -> { view_time_entries_allowed? } do
-          next if represented.new_record?
-
-          {
-            href: work_package_time_entries_path(represented.id),
-            type: 'text/html',
-            title: 'Time entries'
           }
         end
 
@@ -467,10 +286,6 @@ module API
           ::API::V3::Relations::RelationCollectionRepresenter.new(visible_relations,
                                                                   self_path,
                                                                   current_user: current_user)
-        end
-
-        def visible_children
-          @visible_children ||= represented.children.select(&:visible?)
         end
 
         def estimated_time=(value)
