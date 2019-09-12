@@ -34,8 +34,7 @@ module API
       class WorkPackageEagerLoadingWrapper < API::V3::Utilities::EagerLoading::EagerLoadingWrapper
         private_class_method :new
 
-        attr_accessor :json_representer
-        attr_accessor :visible_children_json
+        attr_accessor :json_representer_fragment
 
         def wrapped?
           true
@@ -77,13 +76,11 @@ module API
 
           def eager_loader_classes_all
             [
-              ::API::V3::WorkPackages::EagerLoading::Hierarchy,
-              ::API::V3::WorkPackages::EagerLoading::Ancestor,
               ::API::V3::WorkPackages::EagerLoading::Project,
               ::API::V3::WorkPackages::EagerLoading::Checksum,
               ::API::V3::WorkPackages::EagerLoading::CustomValue,
               ::API::V3::WorkPackages::EagerLoading::CustomAction,
-              ::API::V3::WorkPackages::EagerLoading::SqlRepresenter
+              ::API::V3::WorkPackages::EagerLoading::JsonFragment
             ]
           end
 

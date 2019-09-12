@@ -29,20 +29,14 @@
 #++
 
 module API
-  module V3
-    module WorkPackages
-      module EagerLoading
-        class Ancestor < Base
-          def apply(work_package)
-            work_package.work_package_ancestors = ancestors[work_package.id]
-          end
+  module Decorators
+    module JsonFragmentRepresenter
+      def to_json(*args)
+        super_fragment = ::JSON::parse(super)
 
-          private
+        prerendered_fragment = ::JSON::parse(represented.json_representer_fragment)
 
-          def ancestors
-            @ancestors ||= WorkPackage.aggregate_ancestors(work_packages.map(&:id), User.current)
-          end
-        end
+        ::JSON::dump(prerendered_fragment.deep_merge(super_fragment))
       end
     end
   end

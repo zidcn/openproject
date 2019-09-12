@@ -35,6 +35,7 @@ module API
         include API::Decorators::LinkedResource
         include API::Decorators::DateProperty
         include API::Decorators::FormattableProperty
+        prepend API::Decorators::JsonFragmentRepresenter
         include API::Caching::CachedRepresenter
         include ::API::V3::Attachments::AttachableRepresenterMixin
         extend ::API::V3::Utilities::CustomFieldInjector::RepresenterClass
@@ -50,25 +51,9 @@ module API
 
         self_link title_getter: ->(*) { represented.subject }
 
-        link :update,
-             cache_if: -> { current_user_update_allowed? } do
-          {
-            href: api_v3_paths.work_package_form(represented.id),
-            method: :post
-          }
-        end
-
         link :schema do
           {
             href: api_v3_paths.work_package_schema(represented.project_id, represented.type_id)
-          }
-        end
-
-        link :updateImmediately,
-             cache_if: -> { current_user_update_allowed? } do
-          {
-            href: api_v3_paths.work_package(represented.id),
-            method: :patch
           }
         end
 
@@ -292,16 +277,6 @@ module API
             type: 'text/html',
             title: 'Time entries'
           }
-        end
-
-        links :children,
-              uncacheable: true do
-          OpenProject::ToJsonNoOp.new(represented.visible_children_json)
-        end
-
-        links :ancestors,
-              uncacheable: true do
-          OpenProject::ToJsonNoOp.new(represented.visible_ancestors(current_user))
         end
 
         property :id,
