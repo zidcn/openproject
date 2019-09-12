@@ -33,6 +33,8 @@ module API
     module WorkPackages
       module EagerLoading
         class JsonFragment < Base
+          include ::API::V3::Utilities::PathHelper
+
           def apply(work_package)
             work_package.json_representer_fragment = json_representer_for(work_package.id)
           end
@@ -48,7 +50,10 @@ module API
           def json_representer_map
             sql = <<-SQL
                WITH view_work_packages_projects AS (#{::Project.allowed_to(User.current, :view_work_packages).select(:id).to_sql}),
-                    edit_work_packages_projects AS (#{::Project.allowed_to(User.current, :edit_work_packages).select(:id).to_sql})
+                    edit_work_packages_projects AS (#{::Project.allowed_to(User.current, :edit_work_packages).select(:id).to_sql}),
+                    delete_work_packages_projects AS (#{::Project.allowed_to(User.current, :delete_work_packages).select(:id).to_sql}),
+                    move_work_packages_projects AS (#{::Project.allowed_to(User.current, :move_work_packages).select(:id).to_sql}),
+                    log_time_projects AS (#{::Project.allowed_to(User.current, :log_time).select(:id).to_sql})
 
                SELECT
                  work_packages.id,
@@ -57,7 +62,11 @@ module API
                      json_build_object('children', COALESCE(children.children, '[]'),
                                        'ancestors', COALESCE(ancestors.ancestors, '[]'),
                                        'updateImmediately', action_links.update_immediately,
-                                       'update', action_links.update
+                                       'update', action_links.update,
+                                       'delete', action_links.delete,
+                                       'schema', action_links.schema,
+                                       'logTime', action_links.log_time,
+                                       'move', action_links.move
                                       )
                    )
                  )
@@ -69,7 +78,7 @@ module API
                             (
                             SELECT
                                relations.from_id AS id,
-                               json_build_object('href', '/api/v3/work_packages/' || children.id,
+                               json_build_object('href', format('#{api_v3_paths.work_package('%s')}', children.id),
                                                  'title', children.subject) AS child_hash
                             FROM relations
                             JOIN work_packages children ON
@@ -90,7 +99,7 @@ module API
                       FROM
                       (
                       SELECT relations.to_id AS id,
-                             json_build_object('href', '/api/v3/work_packages/' || ancestors.id,
+                             json_build_object('href', format('#{api_v3_paths.work_package('%s')}', ancestors.id),
                                                'title', ancestors.subject) AS ancestor_hash
                       FROM relations
                       JOIN work_packages ancestors ON
@@ -111,12 +120,25 @@ module API
               (SELECT id,
                       CASE
                       WHEN work_packages.project_id IN (SELECT id FROM edit_work_packages_projects)
-                        THEN json_build_object('href', '/api/v3/work_packages/' || id, 'method', 'patch')
+                        THEN json_build_object('href', format('#{api_v3_paths.work_package('%s')}', id), 'method', 'patch')
                       END  AS update_immediately,
                       CASE
                       WHEN work_packages.project_id IN (SELECT id FROM edit_work_packages_projects)
-                        THEN json_build_object('href', '/api/v3/work_packages/' || id || '/form', 'method', 'post')
-                      END AS update
+                        THEN json_build_object('href', format('#{api_v3_paths.work_package_form('%s')}', id), 'method', 'post')
+                      END AS update,
+                      CASE
+                      WHEN work_packages.project_id IN (SELECT id FROM delete_work_packages_projects)
+                        THEN json_build_object('href', format('#{api_v3_paths.work_package('%s')}', id), 'method', 'delete')
+                      END AS delete,
+                      json_build_object('href', format('#{api_v3_paths.work_package_schema('%s', '%s')}', project_id, type_id)) AS schema,
+                      CASE
+                      WHEN work_packages.project_id IN (SELECT id FROM log_time_projects)
+                        THEN json_build_object('href', format('#{url_helpers.new_work_package_time_entry_path('%s').gsub(/%25s/, '%s')}', id), 'type', 'text/html', 'title', format('Log time on %s', subject))
+                      END AS log_time,
+                      CASE
+                      WHEN work_packages.project_id IN (SELECT id FROM move_work_packages_projects)
+                        THEN json_build_object('href', format('#{url_helpers.new_work_package_move_path('%s').gsub(/%25s/, '%s')}', id), 'type', 'text/html', 'title', format('Move %s', subject))
+                      END AS move
                       FROM work_packages
                       WHERE id IN (#{work_packages.map(&:id).join(', ')})
               ) action_links ON action_links.id = work_packages.id
@@ -124,6 +146,10 @@ module API
             SQL
 
             ActiveRecord::Base.connection.select_all(sql).to_a.map(&:values).to_h
+          end
+
+          def url_helpers
+            @url_helpers ||= OpenProject::StaticRouting::StaticUrlHelpers.new
           end
         end
       end

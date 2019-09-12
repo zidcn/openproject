@@ -51,42 +51,6 @@ module API
 
         self_link title_getter: ->(*) { represented.subject }
 
-        link :schema do
-          {
-            href: api_v3_paths.work_package_schema(represented.project_id, represented.type_id)
-          }
-        end
-
-        link :delete,
-             cache_if: -> { current_user_allowed_to(:delete_work_packages, context: represented.project) } do
-          {
-            href: api_v3_paths.work_package(represented.id),
-            method: :delete
-          }
-        end
-
-        link :logTime,
-             cache_if: -> { current_user_allowed_to(:log_time, context: represented.project) } do
-          next if represented.new_record?
-
-          {
-            href: new_work_package_time_entry_path(represented),
-            type: 'text/html',
-            title: "Log time on #{represented.subject}"
-          }
-        end
-
-        link :move,
-             cache_if: -> { current_user_allowed_to(:move_work_packages, context: represented.project) } do
-          next if represented.new_record?
-
-          {
-            href: new_work_package_move_path(represented),
-            type: 'text/html',
-            title: "Move #{represented.subject}"
-          }
-        end
-
         link :copy,
              cache_if: -> { current_user_allowed_to(:add_work_packages, context: represented.project) } do
 
