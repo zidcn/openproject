@@ -191,7 +191,7 @@ module API
                             v3_path: :work_package,
                             representer: ::API::V3::WorkPackages::WorkPackageRepresenter,
                             skip_render: ->(*) { represented.parent && !represented.parent.visible? },
-                            skip_link: true,
+                            skip_link: ->(*) { true },
                             link: ->(*) {
                               if represented.parent&.visible?
                                 {
