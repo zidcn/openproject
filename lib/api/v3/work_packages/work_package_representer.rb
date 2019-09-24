@@ -190,19 +190,6 @@ module API
                             representer: ::API::V3::WorkPackages::WorkPackageRepresenter,
                             skip_render: ->(*) { represented.parent && !represented.parent.visible? },
                             skip_link: ->(*) { true },
-                            link: ->(*) {
-                              if represented.parent&.visible?
-                                {
-                                  href: api_v3_paths.work_package(represented.parent.id),
-                                  title: represented.parent.subject
-                                }
-                              else
-                                {
-                                  href: nil,
-                                  title: nil
-                                }
-                              end
-                            },
                             setter: ->(fragment:, **) do
                               next if fragment.empty?
 

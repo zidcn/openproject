@@ -309,7 +309,7 @@ module API
                    json_strip_nulls(
                      json_build_object('children', COALESCE(children.children, '[]'),
                                        'ancestors', COALESCE(ancestors.ancestors, '[]'),
-                                       'parent', parents.parent,
+                                       'parent', COALESCE(parents.parent, json_build_object('href', NULL, 'title', NULL)),
                                        'watch', action_links.watch,
                                        'unwatch', action_links.unwatch,
                                        #{self.class.links_select}
