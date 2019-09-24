@@ -35,7 +35,6 @@ module API
         class Project < Base
           def apply(work_package)
             work_package.project = project_for(work_package.project_id)
-            work_package.parent.project = project_for(work_package.parent.project_id) if work_package.parent
           end
 
           private
@@ -56,9 +55,11 @@ module API
           end
 
           def project_ids
-            work_packages.map do |work_package|
-              [work_package.project_id, work_package.parent&.project_id]
-            end.flatten.uniq.compact
+            work_packages
+              .map(&:project_id)
+              .flatten
+              .uniq
+              .compact
           end
         end
       end

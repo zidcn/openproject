@@ -305,6 +305,7 @@ module API
                    json_strip_nulls(
                      json_build_object('children', COALESCE(children.children, '[]'),
                                        'ancestors', COALESCE(ancestors.ancestors, '[]'),
+                                       'parent', parents.parent,
                                        'watch', action_links.watch,
                                        'unwatch', action_links.unwatch,
                                        #{self.class.links_select}
@@ -356,7 +357,25 @@ module API
                       AND relations.to_id IN (#{work_packages.map(&:id).join(', ')})
                       ORDER BY hierarchy DESC
                       ) ancestors_by_id
-                      GROUP BY id) ancestors on children.id = ancestors.id
+                      GROUP BY id) ancestors on work_packages.id = ancestors.id
+              LEFT OUTER JOIN
+              ( SELECT relations.to_id AS id,
+                             json_build_object('href', format('#{api_v3_paths.work_package('%s')}', parents.id),
+                                               'title', parents.subject) AS parent
+                      FROM relations
+                      JOIN work_packages parents ON
+                        parents.id = relations.from_id
+                        AND relations.hierarchy = 1
+                        AND relations.blocks = 0
+                        AND relations.follows = 0
+                        AND relations.relates = 0
+                        AND relations.includes = 0
+                        AND relations.duplicates = 0
+                        AND relations.requires = 0
+                        AND parents.project_id IN (SELECT id FROM view_work_packages_projects)
+                        AND relations.to_id IN (#{work_packages.map(&:id).join(', ')})
+                      ORDER BY hierarchy DESC
+                      ) parents on work_packages.id = parents.id
               LEFT OUTER JOIN
               (SELECT id,
                       #{self.class.links_href},

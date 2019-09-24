@@ -191,8 +191,7 @@ module API
                             v3_path: :work_package,
                             representer: ::API::V3::WorkPackages::WorkPackageRepresenter,
                             skip_render: ->(*) { represented.parent && !represented.parent.visible? },
-                            link_title_attribute: :subject,
-                            uncacheable_link: true,
+                            skip_link: true,
                             link: ->(*) {
                               if represented.parent&.visible?
                                 {
@@ -308,11 +307,8 @@ module API
           represented.custom_actions(current_user).to_a.sort_by(&:position)
         end
 
-        # Attachments need to be eager loaded for the description
-        self.to_eager_load = %i[parent
-                                type
-                                watchers
-                                attachments]
+        self.to_eager_load = %i[type
+                                watchers]
 
         # The dynamic class generation introduced because of the custom fields interferes with
         # the class naming as well as prevents calls to super
