@@ -307,8 +307,7 @@ module API
           represented.custom_actions(current_user).to_a.sort_by(&:position)
         end
 
-        self.to_eager_load = %i[type
-                                watchers]
+        self.to_eager_load = %i[type]
 
         # The dynamic class generation introduced because of the custom fields interferes with
         # the class naming as well as prevents calls to super
