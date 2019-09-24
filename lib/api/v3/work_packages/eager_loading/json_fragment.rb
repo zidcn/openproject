@@ -165,6 +165,10 @@ module API
             end
           end
 
+          link :self,
+               path: { api: :work_package, params: %w(id) },
+               title: { string: '%s', values: %w(subject) }
+
           link :schema,
                path: { api: :work_package_schema, params: %w(project_id type_id) }
 

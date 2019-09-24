@@ -49,8 +49,6 @@ module API
           super
         end
 
-        self_link title_getter: ->(*) { represented.subject }
-
         link :addChild,
              cache_if: -> { current_user_allowed_to(:add_work_packages, context: represented.project) } do
           next if represented.milestone? || represented.new_record?
@@ -264,15 +262,6 @@ module API
           Users::UserCollectionRepresenter.new(watchers,
                                                self_link,
                                                current_user: current_user)
-        end
-
-        def current_user_watcher?
-          represented.watchers.any? { |w| w.user_id == current_user.id }
-        end
-
-        def current_user_update_allowed?
-          current_user_allowed_to(:edit_work_packages, context: represented.project) ||
-            current_user_allowed_to(:assign_versions, context: represented.project)
         end
 
         def relations
