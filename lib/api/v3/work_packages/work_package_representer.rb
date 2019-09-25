@@ -49,17 +49,6 @@ module API
           super
         end
 
-        link :addChild,
-             cache_if: -> { current_user_allowed_to(:add_work_packages, context: represented.project) } do
-          next if represented.milestone? || represented.new_record?
-
-          {
-            href: api_v3_paths.work_packages_by_project(represented.project.identifier),
-            method: :post,
-            title: "Add child of #{represented.subject}"
-          }
-        end
-
         property :id,
                  render_nil: true
 
@@ -173,6 +162,7 @@ module API
 
         associated_resource :author,
                             v3_path: :user,
+                            skip_link: ->(*) { true },
                             representer: ::API::V3::Users::UserRepresenter
 
         associated_resource :responsible,

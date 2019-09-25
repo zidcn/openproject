@@ -41,12 +41,12 @@ module API
           end
 
           class_attribute :action_links,
-                          :property_links
+                          :association_links
 
           class << self
             # TODO: turn action link into separate class so that
             # instances can be generated here
-            def action_link(name, path:, permission: nil, method: :get, type: nil, title: nil, templated: false, payload: payload)
+            def action_link(name, path:, permission: nil, method: :get, type: nil, title: nil, templated: false, payload: payload, condition: nil)
               self.action_links ||= {}
               action_links[name] = { path: path,
                                      permission: permission,
@@ -54,20 +54,22 @@ module API
                                      type: type,
                                      title: title,
                                      templated: templated,
-                                     payload: payload }
+                                     payload: payload,
+                                     condition: nil }
             end
 
             # TODO: turn proerty link into separate class so that
             # instances can be generated here
-            def property_link(name, path:, join:)
-              self.property_links ||= {}
+            def association_link(name, path: nil, join:, title: nil)
+              self.association_links ||= {}
 
-              property_links[name] = { path: path,
-                                       join: join }
+              association_links[name] = { path: path,
+                                          join: join,
+                                          title: title }
             end
 
-            def property_links_joins
-              property_links
+            def association_links_joins
+              association_links
                 .map do |name, link|
                   if link[:join].is_a?(Symbol)
                     "LEFT OUTER JOIN #{link[:join]} #{name} ON #{name}.id = work_packages.#{name}_id"
@@ -78,15 +80,18 @@ module API
                 .join(' ')
             end
 
-            def property_links_selects
-              property_links
-                .map do |name, _|
+            def association_links_selects
+              association_links
+                .map do |name, link|
+                  path_name = link[:path] ? link[:path][:api] : name
+                  title = link[:title] ? link[:title].call : "#{name}.name"
+
                   <<-SQL
                   '#{name}', CASE
                              WHEN #{name}.id IS NOT NULL
                              THEN
-                             json_build_object('href', format('#{api_v3_paths.send(name, '%s')}', #{name}.id),
-                                               'title', #{name}.name)
+                             json_build_object('href', format('#{api_v3_paths.send(path_name, '%s')}', #{name}.id),
+                                               'title', #{title})
                              ELSE
                              json_build_object('href', NULL,
                                                'title', NULL)
@@ -104,11 +109,16 @@ module API
               admin_checked_action_links.map do |name, options|
                 json = href_json_object(options)
                 permission = options[:permission]
+                condition = if options[:condition]
+                              "#{options[:condition]} AND "
+                            else
+                              ""
+                            end
 
                 if permission
                   <<-SQL
                   CASE
-                  WHEN work_packages.project_id IN (SELECT id FROM #{permission}_projects)
+                  WHEN #{condition} work_packages.project_id IN (SELECT id FROM #{permission}_projects)
                   THEN #{json}
                   END AS #{name}
                   SQL
@@ -304,6 +314,13 @@ module API
                       method: :patch,
                       title: { string: "Change parent of %s", values: %w(subject) }
 
+          action_link :addChild,
+                      path: { api: :work_packages_by_project, params: %w(project_id) },
+                      permission: :add_work_packages,
+                      method: :post,
+                      title: { string: "Add child of %s", values: %w(subject) },
+                      condition: "type_id IN (SELECT id from types WHERE is_milestone = '#{OpenProject::Database::DB_VALUE_FALSE})'"
+
           action_link :addComment,
                       path: { api: :work_package_activities, params: %w(id) },
                       permission: :add_work_package_notes,
@@ -333,25 +350,38 @@ module API
                       method: :post,
                       path: -> { "format('#{api_v3_paths.render_markup(link: api_v3_paths.work_package('%s'))}', id)" }
 
-          property_link :type,
-                        path: { api: :type, params: %w(type_id) },
-                        join: :types
+          association_link :type,
+                           path: { api: :type, params: %w(type_id) },
+                           join: :types
 
-          property_link :category,
-                        path: { api: :category, params: %w(category_id) },
-                        join: :categories
+          association_link :category,
+                           path: { api: :category, params: %w(category_id) },
+                           join: :categories
 
-          property_link :project,
-                        path: { api: :project, params: %w(project_id) },
-                        join: :projects
+          association_link :project,
+                           path: { api: :project, params: %w(project_id) },
+                           join: :projects
 
-          property_link :status,
-                        path: { api: :status, params: %w(status_id) },
-                        join: :statuses
+          association_link :status,
+                           path: { api: :status, params: %w(status_id) },
+                           join: :statuses
 
-          property_link :priority,
-                        path: { api: :priority, params: %w(priority_id) },
-                        join: { table: :enumerations, condition: "priority.type = 'IssuePriority'" }
+          association_link :priority,
+                           path: { api: :priority, params: %w(priority_id) },
+                           join: { table: :enumerations, condition: "priority.type = 'IssuePriority'" }
+
+          association_link :author,
+                           path: { api: :user, params: %w(author_id) },
+                           join: :users,
+                           title: -> {
+                             join_string = if Setting.user_format == :lastname_coma_firstname
+                                             " || ', ' || "
+                                           else
+                                             " || ' ' || "
+                                           end
+
+                             User::USER_FORMATS_STRUCTURE[Setting.user_format].map { |p| "author.#{p}" }.join(join_string)
+                           }
 
           def json_representer_for(id)
             @json_representers ||= json_representer_map
@@ -372,7 +402,7 @@ module API
                      json_build_object('children', COALESCE(children.children, '[]'),
                                        'ancestors', COALESCE(ancestors.ancestors, '[]'),
                                        'parent', COALESCE(parents.parent, json_build_object('href', NULL, 'title', NULL)),
-                                       #{self.class.property_links_selects},
+                                       #{self.class.association_links_selects},
                                        'watch', action_links.watch,
                                        'unwatch', action_links.unwatch,
                                        #{self.class.action_links_select}
@@ -443,7 +473,7 @@ module API
                         AND relations.to_id IN (#{work_packages.map(&:id).join(', ')})
                       ORDER BY hierarchy DESC
                       ) parents on work_packages.id = parents.id
-              #{self.class.property_links_joins}
+              #{self.class.association_links_joins}
               LEFT OUTER JOIN
               (SELECT id,
                       #{self.class.action_links_href},
