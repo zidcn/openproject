@@ -178,6 +178,7 @@ module API
         associated_resource :fixed_version,
                             as: :version,
                             v3_path: :version,
+                            skip_link: ->(*) { true },
                             representer: ::API::V3::Versions::VersionRepresenter
 
         associated_resource :parent,
@@ -205,16 +206,12 @@ module API
                             end
 
         resources :customActions,
-                  uncacheable_link: true,
                   link: ->(*) {
-                    ordered_custom_actions.map do |action|
-                      {
-                        href: api_v3_paths.custom_action(action.id),
-                        title: action.name
-                      }
-                    end
+                    next
                   },
                   getter: ->(*) {
+                    next unless embed_links
+
                     ordered_custom_actions.map do |action|
                       ::API::V3::CustomActions::CustomActionRepresenter.new(action, current_user: current_user)
                     end

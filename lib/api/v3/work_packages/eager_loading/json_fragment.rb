@@ -60,10 +60,11 @@ module API
 
             # TODO: turn proerty link into separate class so that
             # instances can be generated here
-            def association_link(name, path: nil, join:, title: nil)
+            def association_link(name, as: name, path: nil, join:, title: nil)
               self.association_links ||= {}
 
-              association_links[name] = { path: path,
+              association_links[name] = { as: as,
+                                          path: path,
                                           join: join,
                                           title: title }
             end
@@ -87,15 +88,15 @@ module API
                   title = link[:title] ? link[:title].call : "#{name}.name"
 
                   <<-SQL
-                  '#{name}', CASE
-                             WHEN #{name}.id IS NOT NULL
-                             THEN
-                             json_build_object('href', format('#{api_v3_paths.send(path_name, '%s')}', #{name}.id),
-                                               'title', #{title})
-                             ELSE
-                             json_build_object('href', NULL,
-                                               'title', NULL)
-                             END
+                  '#{link[:as]}', CASE
+                                  WHEN #{name}.id IS NOT NULL
+                                  THEN
+                                  json_build_object('href', format('#{api_v3_paths.send(path_name, '%s')}', #{name}.id),
+                                                    'title', #{title})
+                                  ELSE
+                                  json_build_object('href', NULL,
+                                                    'title', NULL)
+                                  END
                   SQL
                 end
                 .join(', ')
@@ -383,6 +384,11 @@ module API
                              User::USER_FORMATS_STRUCTURE[Setting.user_format].map { |p| "author.#{p}" }.join(join_string)
                            }
 
+          association_link :fixed_version,
+                           as: :version,
+                           path: { api: :version, params: %w(fixed_version_id) },
+                           join: :versions
+
           def json_representer_for(id)
             @json_representers ||= json_representer_map
 
@@ -405,7 +411,8 @@ module API
                                        #{self.class.association_links_selects},
                                        'watch', action_links.watch,
                                        'unwatch', action_links.unwatch,
-                                       #{self.class.action_links_select}
+                                       #{self.class.action_links_select},
+                                       'customActions', COALESCE(custom_actions.href, '[]')
                                       )
                    )
                  )
@@ -491,6 +498,38 @@ module API
                       FROM work_packages
                       WHERE id IN (#{work_packages.map(&:id).join(', ')})
               ) action_links ON action_links.id = work_packages.id
+              LEFT OUTER JOIN
+              (
+                SELECT id, json_agg(href) AS href
+                FROM (
+                SELECT work_packages.id, json_build_object('href', format('#{api_v3_paths.custom_action('%s')}', custom_actions.id), 
+                                                           'title', custom_actions.name) href
+                FROM custom_actions
+                LEFT OUTER JOIN
+                  custom_actions_projects
+                  ON custom_actions_projects.custom_action_id = custom_actions.id
+                LEFT OUTER JOIN
+                  custom_actions_roles
+                  ON custom_actions_roles.custom_action_id = custom_actions.id
+                LEFT OUTER JOIN
+                  members ON custom_actions_projects.project_id = members.project_id AND members.user_id = #{User.current.id}
+                LEFT OUTER JOIN
+                  member_roles ON member_roles.member_id = members.id
+                LEFT OUTER JOIN
+                  custom_actions_statuses
+                  ON custom_actions_statuses.custom_action_id = custom_actions.id
+                LEFT OUTER JOIN
+                  custom_actions_types
+                  ON custom_actions_types.custom_action_id = custom_actions.id
+                LEFT OUTER JOIN
+                  work_packages ON (work_packages.project_id = custom_actions_projects.project_id OR custom_actions_projects.project_id IS NULL)
+                    AND (work_packages.type_id = custom_actions_types.type_id OR custom_actions_types.type_id IS NULL)
+                  AND (work_packages.type_id = custom_actions_statuses.status_id OR custom_actions_statuses.status_id IS NULL)
+                  AND (member_roles.role_id = custom_actions_roles.role_id OR custom_actions_roles.role_id IS NULL)
+                  AND work_packages.id IN (#{work_packages.map(&:id).join(', ')})
+                ORDER BY custom_actions.position ASC ) custom_actions
+                GROUP BY custom_actions.id
+              ) custom_actions on custom_actions.id = work_packages.id
               WHERE work_packages.id IN (#{work_packages.map(&:id).join(', ')})
             SQL
 
