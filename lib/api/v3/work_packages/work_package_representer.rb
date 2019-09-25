@@ -156,15 +156,20 @@ module API
                  if: ->(*) { embed_links },
                  uncacheable: true
 
-        associated_resource :category
+        associated_resource :category,
+                            skip_link: ->(*) { true }
 
-        associated_resource :type
+        associated_resource :type,
+                            skip_link: ->(*) { true }
 
-        associated_resource :priority
+        associated_resource :priority,
+                            skip_link: ->(*) { true }
 
-        associated_resource :project
+        associated_resource :project,
+                            skip_link: ->(*) { true }
 
-        associated_resource :status
+        associated_resource :status,
+                            skip_link: ->(*) { true }
 
         associated_resource :author,
                             v3_path: :user,

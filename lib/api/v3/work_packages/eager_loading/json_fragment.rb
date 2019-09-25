@@ -40,26 +40,68 @@ module API
             work_package.json_representer_fragment = json_representer_for(work_package.id)
           end
 
-          class_attribute :links
+          class_attribute :action_links,
+                          :property_links
 
           class << self
-            def link(name, path:, permission: nil, method: :get, type: nil, title: nil, templated: false, payload: payload)
-              self.links ||= {}
-              links[name] = { path: path,
-                              permission: permission,
-                              method: method,
-                              type: type,
-                              title: title,
-                              templated: templated,
-                              payload: payload }
+            # TODO: turn action link into separate class so that
+            # instances can be generated here
+            def action_link(name, path:, permission: nil, method: :get, type: nil, title: nil, templated: false, payload: payload)
+              self.action_links ||= {}
+              action_links[name] = { path: path,
+                                     permission: permission,
+                                     method: method,
+                                     type: type,
+                                     title: title,
+                                     templated: templated,
+                                     payload: payload }
             end
 
-            def links_select
-              admin_checked_links.keys.map { |key| %W('#{key}' action_links.#{key}) }.join(', ')
+            # TODO: turn proerty link into separate class so that
+            # instances can be generated here
+            def property_link(name, path:, join:)
+              self.property_links ||= {}
+
+              property_links[name] = { path: path,
+                                       join: join }
             end
 
-            def links_href
-              admin_checked_links.map do |name, options|
+            def property_links_joins
+              property_links
+                .map do |name, link|
+                  if link[:join].is_a?(Symbol)
+                    "LEFT OUTER JOIN #{link[:join]} #{name} ON #{name}.id = work_packages.#{name}_id"
+                  else
+                    "LEFT OUTER JOIN #{link[:join][:table]} #{name} ON #{link[:join][:condition]} AND #{name}.id = work_packages.#{name}_id"
+                  end
+                end
+                .join(' ')
+            end
+
+            def property_links_selects
+              property_links
+                .map do |name, _|
+                  <<-SQL
+                  '#{name}', CASE
+                             WHEN #{name}.id IS NOT NULL
+                             THEN
+                             json_build_object('href', format('#{api_v3_paths.send(name, '%s')}', #{name}.id),
+                                               'title', #{name}.name)
+                             ELSE
+                             json_build_object('href', NULL,
+                                               'title', NULL)
+                             END
+                  SQL
+                end
+                .join(', ')
+            end
+
+            def action_links_select
+              admin_checked_action_links.keys.map { |key| %W('#{key}' action_links.#{key}) }.join(', ')
+            end
+
+            def action_links_href
+              admin_checked_action_links.map do |name, options|
                 json = href_json_object(options)
                 permission = options[:permission]
 
@@ -76,8 +118,8 @@ module API
               end.join(', ')
             end
 
-            def links_ctes
-              admin_checked_links
+            def action_links_ctes
+              admin_checked_action_links
                 .values
                 .map { |options| options[:permission] }
                 .compact
@@ -95,7 +137,7 @@ module API
               templated = options[:templated]
               payload = options[:payload]
 
-              json_params = [["'href'", link_href(options[:path])]]
+              json_params = [["'href'", action_link_href(options[:path])]]
 
               if method != :get
                 json_params << %W('method' '#{method.to_s}')
@@ -120,7 +162,7 @@ module API
               "json_build_object(#{json_params.join(', ')})"
             end
 
-            def link_href(path_options)
+            def action_link_href(path_options)
               if path_options.respond_to?(:call)
                 custom_link_href(path_options)
               else
@@ -152,11 +194,11 @@ module API
               end
             end
 
-            def admin_checked_links
+            def admin_checked_action_links
               if User.current.admin?
-                links
+                action_links
               else
-                links.reject { |_, options| options[:permission] == :admin }
+                action_links.reject { |_, options| options[:permission] == :admin }
               end
             end
 
@@ -165,131 +207,151 @@ module API
             end
           end
 
-          link :self,
-               path: { api: :work_package, params: %w(id) },
-               title: { string: '%s', values: %w(subject) }
+          action_link :self,
+                      path: { api: :work_package, params: %w(id) },
+                      title: { string: '%s', values: %w(subject) }
 
-          link :schema,
-               path: { api: :work_package_schema, params: %w(project_id type_id) }
+          action_link :schema,
+                      path: { api: :work_package_schema, params: %w(project_id type_id) }
 
-          link :delete,
-               path: { api: :work_package, params: %w(id) },
-               permission: :delete_work_packages,
-               method: :delete
+          action_link :delete,
+                      path: { api: :work_package, params: %w(id) },
+                      permission: :delete_work_packages,
+                      method: :delete
 
-          link :update,
-               path: { api: :work_package_form, params: %w(id) },
-               permission: :edit_work_packages,
-               method: :post
+          action_link :update,
+                      path: { api: :work_package_form, params: %w(id) },
+                      permission: :edit_work_packages,
+                      method: :post
 
-          link :updateImmediately,
-               path: { api: :work_package, params: %w(id) },
-               permission: :edit_work_packages,
-               method: :patch
+          action_link :updateImmediately,
+                      path: { api: :work_package, params: %w(id) },
+                      permission: :edit_work_packages,
+                      method: :patch
 
-          link :copy,
-               path: { html: :work_package_path, params: %w(id), queryProps: %w(copy) },
-               permission: :add_work_packages,
-               type: 'text/html',
-               title: { string: 'Copy %s', values: %w(subject) }
+          action_link :copy,
+                      path: { html: :work_package_path, params: %w(id), queryProps: %w(copy) },
+                      permission: :add_work_packages,
+                      type: 'text/html',
+                      title: { string: 'Copy %s', values: %w(subject) }
 
-          link :logTime,
-               path: { html: :new_work_package_time_entry_path, params: %w(id) },
-               permission: :log_time,
-               type: 'text/html',
-               title: { string: 'Log time %s', values: %w(subject) }
+          action_link :logTime,
+                      path: { html: :new_work_package_time_entry_path, params: %w(id) },
+                      permission: :log_time,
+                      type: 'text/html',
+                      title: { string: 'Log time %s', values: %w(subject) }
 
-          link :move,
-               path: { html: :new_work_package_move_path, params: %w(id) },
-               permission: :move,
-               type: 'text/html',
-               title: { string: 'Move %s', values: %w(subject) }
+          action_link :move,
+                      path: { html: :new_work_package_move_path, params: %w(id) },
+                      permission: :move,
+                      type: 'text/html',
+                      title: { string: 'Move %s', values: %w(subject) }
 
-          link :pdf,
-               path: { html: :work_package_path, params: %w(id), queryProps: { format: :pdf } },
-               permission: :export,
-               type: 'application/pdf',
-               title: { string: 'Export as PDF' }
+          action_link :pdf,
+                      path: { html: :work_package_path, params: %w(id), queryProps: { format: :pdf } },
+                      permission: :export,
+                      type: 'application/pdf',
+                      title: { string: 'Export as PDF' }
 
-          link :atom,
-               path: { html: :work_package_path, params: %w(id), queryProps: { format: :atom } },
-               permission: :export,
-               type: 'application/rss+xml',
-               title: { string: 'Atom feed' }
+          action_link :atom,
+                      path: { html: :work_package_path, params: %w(id), queryProps: { format: :atom } },
+                      permission: :export,
+                      type: 'application/rss+xml',
+                      title: { string: 'Atom feed' }
 
-          link :availableRelationCandidates,
-               path: { api: :work_package_available_relation_candidates, params: %w(id) },
-               title: { string: "Potential work packages to relate to" }
+          action_link :availableRelationCandidates,
+                      path: { api: :work_package_available_relation_candidates, params: %w(id) },
+                      title: { string: "Potential work packages to relate to" }
 
-          link :customFields,
-               path: { html: :settings_project_path, params: %w(project_id), queryProps: { tab: 'custom_fields' } },
-               permission: :edit_project,
-               type: 'text/html',
-               title: { string: "Custom fields" }
+          action_link :customFields,
+                      path: { html: :settings_project_path, params: %w(project_id), queryProps: { tab: 'custom_fields' } },
+                      permission: :edit_project,
+                      type: 'text/html',
+                      title: { string: "Custom fields" }
 
-          link :configureForm,
-               path: { html: :edit_type_path, params: %w(type_id), queryProps: { tab: 'form_configuration' } },
-               permission: :admin,
-               type: 'text/html',
-               title: { string: "Configure form" }
+          action_link :configureForm,
+                      path: { html: :edit_type_path, params: %w(type_id), queryProps: { tab: 'form_configuration' } },
+                      permission: :admin,
+                      type: 'text/html',
+                      title: { string: "Configure form" }
 
-          link :activities,
-               path: { api: :work_package_activities, params: %w(id) }
+          action_link :activities,
+                      path: { api: :work_package_activities, params: %w(id) }
 
-          link :relations,
-               path: { api: :work_package_relations, params: %w(id) }
+          action_link :relations,
+                      path: { api: :work_package_relations, params: %w(id) }
 
-          link :revisions,
-               path: { api: :work_package_revisions, params: %w(id) }
+          action_link :revisions,
+                      path: { api: :work_package_revisions, params: %w(id) }
 
-          link :available_watchers,
-               path: { api: :available_watchers, params: %w(id) },
-               permission: :add_work_package_watchers
+          action_link :available_watchers,
+                      path: { api: :available_watchers, params: %w(id) },
+                      permission: :add_work_package_watchers
 
-          link :watchers,
-               path: { api: :work_package_watchers, params: %w(id) },
-               permission: :view_work_package_watchers
+          action_link :watchers,
+                      path: { api: :work_package_watchers, params: %w(id) },
+                      permission: :view_work_package_watchers
 
-          link :addRelation,
-               path: { api: :work_package_relations, params: %w(id) },
-               permission: :manage_work_package_relations,
-               method: :post,
-               title: { string: "Add relation" }
+          action_link :addRelation,
+                      path: { api: :work_package_relations, params: %w(id) },
+                      permission: :manage_work_package_relations,
+                      method: :post,
+                      title: { string: "Add relation" }
 
-          link :changeParent,
-               path: { api: :work_package, params: %w(id) },
-               permission: :manage_subtasks,
-               method: :patch,
-               title: { string: "Change parent of %s", values: %w(subject) }
+          action_link :changeParent,
+                      path: { api: :work_package, params: %w(id) },
+                      permission: :manage_subtasks,
+                      method: :patch,
+                      title: { string: "Change parent of %s", values: %w(subject) }
 
-          link :addComment,
-               path: { api: :work_package_activities, params: %w(id) },
-               permission: :add_work_package_notes,
-               method: :post,
-               title: { string: "Add comment" }
+          action_link :addComment,
+                      path: { api: :work_package_activities, params: %w(id) },
+                      permission: :add_work_package_notes,
+                      method: :post,
+                      title: { string: "Add comment" }
 
-          link :timeEntries,
-               path: { html: :work_package_time_entries_path, params: %w(id) },
-               permission: :view_time_entries,
-               type: 'text/html',
-               title: { string: "Time entries" }
+          action_link :timeEntries,
+                      path: { html: :work_package_time_entries_path, params: %w(id) },
+                      permission: :view_time_entries,
+                      type: 'text/html',
+                      title: { string: "Time entries" }
 
-          link :addWatcher,
-               permission: :add_work_package_watchers,
-               path: { api: :work_package_watchers, params: %w(id) },
-               method: :post,
-               templated: true,
-               payload: -> { "json_build_object('_links', json_build_object('user', json_build_object('href', '#{api_v3_paths.user('{user_id}')}')))" }
+          action_link :addWatcher,
+                      permission: :add_work_package_watchers,
+                      path: { api: :work_package_watchers, params: %w(id) },
+                      method: :post,
+                      templated: true,
+                      payload: -> { "json_build_object('_links', json_build_object('user', json_build_object('href', '#{api_v3_paths.user('{user_id}')}')))" }
 
-          link :removeWatcher,
-               permission: :delete_work_package_watchers,
-               path: -> { "format('#{api_v3_paths.watcher('{user_id}', '%s')}', id)" },
-               method: :delete,
-               templated: true
+          action_link :removeWatcher,
+                      permission: :delete_work_package_watchers,
+                      path: -> { "format('#{api_v3_paths.watcher('{user_id}', '%s')}', id)" },
+                      method: :delete,
+                      templated: true
 
-          link :previewMarkup,
-               method: :post,
-               path: -> { "format('#{api_v3_paths.render_markup(link: api_v3_paths.work_package('%s'))}', id)" }
+          action_link :previewMarkup,
+                      method: :post,
+                      path: -> { "format('#{api_v3_paths.render_markup(link: api_v3_paths.work_package('%s'))}', id)" }
+
+          property_link :type,
+                        path: { api: :type, params: %w(type_id) },
+                        join: :types
+
+          property_link :category,
+                        path: { api: :category, params: %w(category_id) },
+                        join: :categories
+
+          property_link :project,
+                        path: { api: :project, params: %w(project_id) },
+                        join: :projects
+
+          property_link :status,
+                        path: { api: :status, params: %w(status_id) },
+                        join: :statuses
+
+          property_link :priority,
+                        path: { api: :priority, params: %w(priority_id) },
+                        join: { table: :enumerations, condition: "priority.type = 'IssuePriority'" }
 
           def json_representer_for(id)
             @json_representers ||= json_representer_map
@@ -301,7 +363,7 @@ module API
             sql = <<-SQL
                WITH view_work_packages_projects AS (#{::Project.allowed_to(User.current, :view_work_packages).select(:id).to_sql}),
                     watcher_users AS (SELECT users.*, watchable_id FROM users JOIN watchers ON watchers.watchable_id IN (#{work_packages.map(&:id).join(', ')}) AND watchable_type = 'WorkPackage' AND watchers.user_id = users.id	),
-                    #{self.class.links_ctes}
+                    #{self.class.action_links_ctes}
 
                SELECT
                  work_packages.id,
@@ -310,9 +372,10 @@ module API
                      json_build_object('children', COALESCE(children.children, '[]'),
                                        'ancestors', COALESCE(ancestors.ancestors, '[]'),
                                        'parent', COALESCE(parents.parent, json_build_object('href', NULL, 'title', NULL)),
+                                       #{self.class.property_links_selects},
                                        'watch', action_links.watch,
                                        'unwatch', action_links.unwatch,
-                                       #{self.class.links_select}
+                                       #{self.class.action_links_select}
                                       )
                    )
                  )
@@ -380,9 +443,10 @@ module API
                         AND relations.to_id IN (#{work_packages.map(&:id).join(', ')})
                       ORDER BY hierarchy DESC
                       ) parents on work_packages.id = parents.id
+              #{self.class.property_links_joins}
               LEFT OUTER JOIN
               (SELECT id,
-                      #{self.class.links_href},
+                      #{self.class.action_links_href},
                       CASE
                       WHEN #{User.current.id} NOT IN (SELECT id FROM watcher_users WHERE watchable_id = work_packages.id)
                         THEN json_build_object('href', '/api/v3/work_packages/' || id || '/watchers',
