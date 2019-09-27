@@ -41,7 +41,8 @@ module API
           end
 
           class_attribute :action_links,
-                          :association_links
+                          :association_links,
+                          :properties
 
           class << self
             # TODO: turn action link into separate class so that
@@ -103,6 +104,13 @@ module API
                   SQL
                 end
                 .join(', ')
+            end
+
+            def property(name,
+                         column: name)
+              self.properties ||= {}
+
+              properties[name] = { column: column }
             end
 
             def action_links_select
@@ -219,7 +227,42 @@ module API
             def url_helpers
               @url_helpers ||= OpenProject::StaticRouting::StaticUrlHelpers.new
             end
+
+            public
+
+            # Properties
+            # TODO: extract into class
+            def properties_sql
+              properties.map do |name, options|
+                "'#{name}', work_packages.#{options[:column]}"
+              end.join(', ')
+            end
           end
+
+          property :id
+
+          property :lockVersion,
+                   column: :lock_version
+
+          property :subject
+
+          # TODO: only if not milestone
+          property :startDate,
+                   column: :start_date
+
+          # TODO: only if not milestone
+          property :dueDate,
+                   column: :due_date
+
+          # TODO: only if milestone
+          property :date,
+                   column: :due_date
+
+          property :createdAt,
+                   column: :created_at
+
+          property :updatedAt,
+                   column: :updated_at
 
           action_link :self,
                       path: { api: :work_package, params: %w(id) },
@@ -451,8 +494,9 @@ module API
 
                SELECT
                  work_packages.id,
-                 json_build_object('_links',
-                   json_strip_nulls(
+                 json_build_object(
+                   #{self.class.properties_sql},
+                   '_links', json_strip_nulls(
                      json_build_object('children', COALESCE(children.children, '[]'),
                                        'ancestors', COALESCE(ancestors.ancestors, '[]'),
                                        'parent', COALESCE(parents.parent, json_build_object('href', NULL, 'title', NULL)),

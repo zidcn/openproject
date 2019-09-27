@@ -49,50 +49,50 @@ module API
           super
         end
 
-        property :id,
-                 render_nil: true
+        #property :id,
+        #         render_nil: true
 
-        property :lock_version,
-                 render_nil: true,
-                 getter: ->(*) {
-                   lock_version.to_i
-                 }
+        #property :lock_version,
+        #         render_nil: true,
+        #         getter: ->(*) {
+        #           lock_version.to_i
+        #         }
 
-        property :subject,
-                 render_nil: true
+        #property :subject,
+        #         render_nil: true
 
         formattable_property :description
 
-        date_property :start_date,
-                      skip_render: ->(represented:, **) {
-                        represented.milestone?
-                      }
+        #date_property :start_date,
+        #              skip_render: ->(represented:, **) {
+        #                represented.milestone?
+        #              }
 
-        date_property :due_date,
-                      skip_render: ->(represented:, **) {
-                        represented.milestone?
-                      }
+        #date_property :due_date,
+        #              skip_render: ->(represented:, **) {
+        #                represented.milestone?
+        #              }
 
         # Using setter: does not work in case the provided date fragment is nil.
-        date_property :date,
-                      getter: default_date_getter(:due_date),
-                      setter: ->(*) {
-                        # handled in reader
-                      },
-                      reader: ->(decorator:, doc:, **) {
-                        next unless doc.key?('date')
+        #date_property :date,
+        #              getter: default_date_getter(:due_date),
+        #              setter: ->(*) {
+        #                # handled in reader
+        #              },
+        #              reader: ->(decorator:, doc:, **) {
+        #                next unless doc.key?('date')
 
-                        date = decorator
-                               .datetime_formatter
-                               .parse_date(doc['date'],
-                                           name.to_s.camelize(:lower),
-                                           allow_nil: true)
+        #                date = decorator
+        #                       .datetime_formatter
+        #                       .parse_date(doc['date'],
+        #                                   name.to_s.camelize(:lower),
+        #                                   allow_nil: true)
 
-                        self.due_date = self.start_date = date
-                      },
-                      skip_render: ->(represented:, **) {
-                        !represented.milestone?
-                      }
+        #                self.due_date = self.start_date = date
+        #              },
+        #              skip_render: ->(represented:, **) {
+        #                !represented.milestone?
+        #              }
 
         property :estimated_time,
                  exec_context: :decorator,
@@ -125,102 +125,102 @@ module API
                  render_nil: true,
                  if: ->(*) { Setting.work_package_done_ratio != 'disabled' }
 
-        date_time_property :created_at
+        #date_time_property :created_at
 
-        date_time_property :updated_at
+        #date_time_property :updated_at
 
-        property :watchers,
-                 embedded: true,
-                 exec_context: :decorator,
-                 uncacheable: true,
-                 if: ->(*) {
-                   current_user_allowed_to(:view_work_package_watchers,
-                                           context: represented.project) &&
-                     embed_links
-                 }
+        #property :watchers,
+        #         embedded: true,
+        #         exec_context: :decorator,
+        #         uncacheable: true,
+        #         if: ->(*) {
+        #           current_user_allowed_to(:view_work_package_watchers,
+        #                                   context: represented.project) &&
+        #             embed_links
+        #         }
 
-        property :relations,
-                 embedded: true,
-                 exec_context: :decorator,
-                 if: ->(*) { embed_links },
-                 uncacheable: true
+        #property :relations,
+        #         embedded: true,
+        #         exec_context: :decorator,
+        #         if: ->(*) { embed_links },
+        #         uncacheable: true
 
-        associated_resource :category,
-                            skip_link: ->(*) { true }
+        #associated_resource :category,
+        #                    skip_link: ->(*) { true }
 
-        associated_resource :type,
-                            skip_link: ->(*) { true }
+        #associated_resource :type,
+        #                    skip_link: ->(*) { true }
 
-        associated_resource :priority,
-                            skip_link: ->(*) { true }
+        #associated_resource :priority,
+        #                    skip_link: ->(*) { true }
 
-        associated_resource :project,
-                            skip_link: ->(*) { true }
+        #associated_resource :project,
+        #                    skip_link: ->(*) { true }
 
-        associated_resource :status,
-                            skip_link: ->(*) { true }
+        #associated_resource :status,
+        #                    skip_link: ->(*) { true }
 
-        associated_resource :author,
-                            v3_path: :user,
-                            skip_link: ->(*) { true },
-                            representer: ::API::V3::Users::UserRepresenter
+        #associated_resource :author,
+        #                    v3_path: :user,
+        #                    skip_link: ->(*) { true },
+        #                    representer: ::API::V3::Users::UserRepresenter
 
-        associated_resource :responsible,
-                            getter: ::API::V3::Principals::AssociatedSubclassLambda.getter(:responsible),
-                            setter: PrincipalSetter.lambda(:responsible),
-                            skip_link: ->(*) { true },
-                            link: ::API::V3::Principals::AssociatedSubclassLambda.link(:responsible)
+        #associated_resource :responsible,
+        #                    getter: ::API::V3::Principals::AssociatedSubclassLambda.getter(:responsible),
+        #                    setter: PrincipalSetter.lambda(:responsible),
+        #                    skip_link: ->(*) { true },
+        #                    link: ::API::V3::Principals::AssociatedSubclassLambda.link(:responsible)
 
-        associated_resource :assignee,
-                            getter: ::API::V3::Principals::AssociatedSubclassLambda.getter(:assigned_to),
-                            setter: PrincipalSetter.lambda(:assigned_to, :assignee),
-                            skip_link: ->(*) { true },
-                            link: ::API::V3::Principals::AssociatedSubclassLambda.link(:assigned_to)
+        #associated_resource :assignee,
+        #                    getter: ::API::V3::Principals::AssociatedSubclassLambda.getter(:assigned_to),
+        #                    setter: PrincipalSetter.lambda(:assigned_to, :assignee),
+        #                    skip_link: ->(*) { true },
+        #                    link: ::API::V3::Principals::AssociatedSubclassLambda.link(:assigned_to)
 
-        associated_resource :fixed_version,
-                            as: :version,
-                            v3_path: :version,
-                            skip_link: ->(*) { true },
-                            representer: ::API::V3::Versions::VersionRepresenter
+        #associated_resource :fixed_version,
+        #                    as: :version,
+        #                    v3_path: :version,
+        #                    skip_link: ->(*) { true },
+        #                    representer: ::API::V3::Versions::VersionRepresenter
 
-        associated_resource :parent,
-                            v3_path: :work_package,
-                            representer: ::API::V3::WorkPackages::WorkPackageRepresenter,
-                            skip_render: ->(*) { represented.parent && !represented.parent.visible? },
-                            skip_link: ->(*) { true },
-                            setter: ->(fragment:, **) do
-                              next if fragment.empty?
+        #associated_resource :parent,
+        #                    v3_path: :work_package,
+        #                    representer: ::API::V3::WorkPackages::WorkPackageRepresenter,
+        #                    skip_render: ->(*) { represented.parent && !represented.parent.visible? },
+        #                    skip_link: ->(*) { true },
+        #                    setter: ->(fragment:, **) do
+        #                      next if fragment.empty?
 
-                              href = fragment['href']
+        #                      href = fragment['href']
 
-                              new_parent = if href
-                                             id = ::API::Utilities::ResourceLinkParser
-                                                  .parse_id href,
-                                                            property: 'parent',
-                                                            expected_version: '3',
-                                                            expected_namespace: 'work_packages'
+        #                      new_parent = if href
+        #                                     id = ::API::Utilities::ResourceLinkParser
+        #                                          .parse_id href,
+        #                                                    property: 'parent',
+        #                                                    expected_version: '3',
+        #                                                    expected_namespace: 'work_packages'
 
-                                             WorkPackage.find_by(id: id) ||
-                                               ::WorkPackage::InexistentWorkPackage.new(id: id)
-                                           end
+        #                                     WorkPackage.find_by(id: id) ||
+        #                                       ::WorkPackage::InexistentWorkPackage.new(id: id)
+        #                                   end
 
-                              represented.parent = new_parent
-                            end
+        #                      represented.parent = new_parent
+        #                    end
 
-        resources :customActions,
-                  link: ->(*) {
-                    next
-                  },
-                  getter: ->(*) {
-                    next unless embed_links
+        #resources :customActions,
+        #          link: ->(*) {
+        #            next
+        #          },
+        #          getter: ->(*) {
+        #            next unless embed_links
 
-                    ordered_custom_actions.map do |action|
-                      ::API::V3::CustomActions::CustomActionRepresenter.new(action, current_user: current_user)
-                    end
-                  },
-                  setter: ->(*) do
-                    # noop
-                  end
+        #            ordered_custom_actions.map do |action|
+        #              ::API::V3::CustomActions::CustomActionRepresenter.new(action, current_user: current_user)
+        #            end
+        #          },
+        #          setter: ->(*) do
+        #            # noop
+        #          end
 
         def _type
           'WorkPackage'
