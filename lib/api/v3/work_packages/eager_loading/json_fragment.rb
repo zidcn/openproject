@@ -60,13 +60,14 @@ module API
 
             # TODO: turn proerty link into separate class so that
             # instances can be generated here
-            def association_link(name, as: name, path: nil, join:, title: nil)
+            def association_link(name, as: name, path: nil, join:, title: nil, href: nil)
               self.association_links ||= {}
 
               association_links[name] = { as: as,
                                           path: path,
                                           join: join,
-                                          title: title }
+                                          title: title,
+                                          href: href }
             end
 
             def association_links_joins
@@ -87,11 +88,13 @@ module API
                   path_name = link[:path] ? link[:path][:api] : name
                   title = link[:title] ? link[:title].call : "#{name}.name"
 
+                  href = link[:href] ? link[:href].call : "format('#{api_v3_paths.send(path_name, '%s')}', #{name}.id)"
+
                   <<-SQL
                   '#{link[:as]}', CASE
                                   WHEN #{name}.id IS NOT NULL
                                   THEN
-                                  json_build_object('href', format('#{api_v3_paths.send(path_name, '%s')}', #{name}.id),
+                                  json_build_object('href', #{href},
                                                     'title', #{title})
                                   ELSE
                                   json_build_object('href', NULL,
@@ -382,6 +385,51 @@ module API
                                            end
 
                              User::USER_FORMATS_STRUCTURE[Setting.user_format].map { |p| "author.#{p}" }.join(join_string)
+                           }
+
+          association_link :responsible,
+                           path: { api: :user, params: %w(responsible_id) },
+                           join: :users,
+                           title: -> {
+                             join_string = if Setting.user_format == :lastname_coma_firstname
+                                             " || ', ' || "
+                                           else
+                                             " || ' ' || "
+                                           end
+
+                             User::USER_FORMATS_STRUCTURE[Setting.user_format].map { |p| "responsible.#{p}" }.join(join_string)
+                           },
+                           href: -> {
+                             <<-SQL
+                              CASE
+                              WHEN responsible.type = 'User'
+                              THEN format('#{api_v3_paths.user('%s')}', responsible_id)
+                              ELSE format('#{api_v3_paths.group('%s')}', responsible_id)
+                              END
+                             SQL
+                           }
+
+          association_link :assigned_to,
+                           as: :assignee,
+                           path: { api: :user, params: %w(assigned_to_id) },
+                           join: :users,
+                           title: -> {
+                             join_string = if Setting.user_format == :lastname_coma_firstname
+                                             " || ', ' || "
+                                           else
+                                             " || ' ' || "
+                                           end
+
+                             User::USER_FORMATS_STRUCTURE[Setting.user_format].map { |p| "assigned_to.#{p}" }.join(join_string)
+                           },
+                           href: -> {
+                             <<-SQL
+                              CASE
+                              WHEN assigned_to.type = 'User'
+                              THEN format('#{api_v3_paths.user('%s')}', assigned_to.id)
+                              ELSE format('#{api_v3_paths.group('%s')}', assigned_to.id)
+                              END
+                             SQL
                            }
 
           association_link :fixed_version,

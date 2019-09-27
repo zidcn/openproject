@@ -168,11 +168,13 @@ module API
         associated_resource :responsible,
                             getter: ::API::V3::Principals::AssociatedSubclassLambda.getter(:responsible),
                             setter: PrincipalSetter.lambda(:responsible),
+                            skip_link: ->(*) { true },
                             link: ::API::V3::Principals::AssociatedSubclassLambda.link(:responsible)
 
         associated_resource :assignee,
                             getter: ::API::V3::Principals::AssociatedSubclassLambda.getter(:assigned_to),
                             setter: PrincipalSetter.lambda(:assigned_to, :assignee),
+                            skip_link: ->(*) { true },
                             link: ::API::V3::Principals::AssociatedSubclassLambda.link(:assigned_to)
 
         associated_resource :fixed_version,
