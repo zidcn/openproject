@@ -107,10 +107,11 @@ module API
             end
 
             def property(name,
-                         column: name)
+                         column: name,
+                         render_if: nil)
               self.properties ||= {}
 
-              properties[name] = { column: column }
+              properties[name] = { column: column, render_if: render_if }
             end
 
             def action_links_select
@@ -237,6 +238,14 @@ module API
                 "'#{name}', work_packages.#{options[:column]}"
               end.join(', ')
             end
+
+            def properties_conditions
+              properties
+                .select { |_, options| options[:render_if] }
+                .map do |name, options|
+                "- CASE WHEN #{options[:render_if].call} THEN '' ELSE '#{name}' END"
+              end.join(' ')
+            end
           end
 
           property :id
@@ -246,17 +255,17 @@ module API
 
           property :subject
 
-          # TODO: only if not milestone
           property :startDate,
-                   column: :start_date
+                   column: :start_date,
+                   render_if: -> { "type.is_milestone = '#{OpenProject::Database::DB_VALUE_FALSE}'" }
 
-          # TODO: only if not milestone
           property :dueDate,
-                   column: :due_date
+                   column: :due_date,
+                   render_if: -> { "type.is_milestone = '#{OpenProject::Database::DB_VALUE_FALSE}'" }
 
-          # TODO: only if milestone
           property :date,
-                   column: :due_date
+                   column: :due_date,
+                   render_if: -> { "type.is_milestone = '#{OpenProject::Database::DB_VALUE_TRUE}'" }
 
           property :createdAt,
                    column: :created_at
@@ -507,7 +516,7 @@ module API
                                        'customActions', COALESCE(custom_actions.href, '[]')
                                       )
                    )
-                 )
+                 )::jsonb #{self.class.properties_conditions}
                FROM
                  work_packages
                LEFT OUTER JOIN
