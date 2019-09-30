@@ -440,6 +440,14 @@ module API
                       method: :post,
                       path: -> { "format('#{api_v3_paths.render_markup(link: api_v3_paths.work_package('%s'))}', id)" }
 
+          action_link :addAttachment,
+                      permission: :edit_work_packages,
+                      method: :post,
+                      path: { api: :attachments_by_work_package, params: %w(id) }
+
+          action_link :attachments,
+                      path: { api: :attachments_by_work_package, params: %w(id) }
+
           association_link :type,
                            path: { api: :type, params: %w(type_id) },
                            join: :types

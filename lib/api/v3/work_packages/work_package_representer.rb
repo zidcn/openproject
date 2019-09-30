@@ -37,7 +37,7 @@ module API
         include API::Decorators::FormattableProperty
         prepend API::Decorators::JsonFragmentRepresenter
         include API::Caching::CachedRepresenter
-        include ::API::V3::Attachments::AttachableRepresenterMixin
+        #include ::API::V3::Attachments::AttachableRepresenterMixin
         extend ::API::V3::Utilities::CustomFieldInjector::RepresenterClass
 
         cached_representer key_parts: %i(project),
