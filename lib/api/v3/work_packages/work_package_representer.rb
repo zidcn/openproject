@@ -94,21 +94,21 @@ module API
         #                !represented.milestone?
         #              }
 
-        property :estimated_time,
-                 exec_context: :decorator,
-                 getter: ->(*) do
-                   datetime_formatter.format_duration_from_hours(represented.estimated_hours,
-                                                                 allow_nil: true)
-                 end,
-                 render_nil: true
+        #property :estimated_time,
+        #         exec_context: :decorator,
+        #         getter: ->(*) do
+        #           datetime_formatter.format_duration_from_hours(represented.estimated_hours,
+        #                                                         allow_nil: true)
+        #         end,
+        #         render_nil: true
 
-        property :derived_estimated_time,
-                 exec_context: :decorator,
-                 getter: ->(*) do
-                   datetime_formatter.format_duration_from_hours(represented.derived_estimated_hours,
-                                                                 allow_nil: true)
-                 end,
-                 render_nil: true
+        #property :derived_estimated_time,
+        #         exec_context: :decorator,
+        #         getter: ->(*) do
+        #           datetime_formatter.format_duration_from_hours(represented.derived_estimated_hours,
+        #                                                         allow_nil: true)
+        #         end,
+        #         render_nil: true
 
         property :spent_time,
                  exec_context: :decorator,
@@ -120,10 +120,10 @@ module API
                  },
                  uncacheable: true
 
-        property :done_ratio,
-                 as: :percentageDone,
-                 render_nil: true,
-                 if: ->(*) { Setting.work_package_done_ratio != 'disabled' }
+        #property :done_ratio,
+        #         as: :percentageDone,
+        #         render_nil: true,
+        #         if: ->(*) { Setting.work_package_done_ratio != 'disabled' }
 
         #date_time_property :created_at
 

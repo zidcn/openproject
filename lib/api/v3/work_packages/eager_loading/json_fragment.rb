@@ -108,10 +108,11 @@ module API
 
             def property(name,
                          column: name,
+                         representation: nil,
                          render_if: nil)
               self.properties ||= {}
 
-              properties[name] = { column: column, render_if: render_if }
+              properties[name] = { column: column, render_if: render_if, representation: representation }
             end
 
             def action_links_select
@@ -235,7 +236,13 @@ module API
             # TODO: extract into class
             def properties_sql
               properties.map do |name, options|
-                "'#{name}', work_packages.#{options[:column]}"
+                representation = if options[:representation]
+                                   options[:representation].call
+                                 else
+                                   "work_packages.#{options[:column]}"
+                                 end
+
+                "'#{name}', #{representation}"
               end.join(', ')
             end
 
@@ -272,6 +279,16 @@ module API
 
           property :updatedAt,
                    column: :updated_at
+
+          property :percentageDone,
+                   column: :done_ratio,
+                   render_if: -> { Setting.work_package_done_ratio != 'disabled' ? "1 = 1" : "1 = 0" }
+
+          property :estimatedTime,
+                   representation: -> { "make_interval(mins := CAST(work_packages.estimated_hours * 60 as int))" }
+
+          property :derivedEstimatedTime,
+                   representation: -> { "make_interval(mins := CAST(work_packages.derived_estimated_hours * 60 as int))" }
 
           action_link :self,
                       path: { api: :work_package, params: %w(id) },
@@ -496,6 +513,8 @@ module API
           end
 
           def json_representer_map
+            ActiveRecord::Base.connection.execute("SET intervalstyle = 'iso_8601';")
+
             sql = <<-SQL
                WITH view_work_packages_projects AS (#{::Project.allowed_to(User.current, :view_work_packages).select(:id).to_sql}),
                     watcher_users AS (SELECT users.*, watchable_id FROM users JOIN watchers ON watchers.watchable_id IN (#{work_packages.map(&:id).join(', ')}) AND watchable_type = 'WorkPackage' AND watchers.user_id = users.id	),
