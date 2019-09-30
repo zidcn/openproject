@@ -110,15 +110,15 @@ module API
         #         end,
         #         render_nil: true
 
-        property :spent_time,
-                 exec_context: :decorator,
-                 getter: ->(*) do
-                   datetime_formatter.format_duration_from_hours(represented.spent_hours)
-                 end,
-                 if: ->(*) {
-                   view_time_entries_allowed?
-                 },
-                 uncacheable: true
+        #property :spent_time,
+        #         exec_context: :decorator,
+        #         getter: ->(*) do
+        #           datetime_formatter.format_duration_from_hours(represented.spent_hours)
+        #         end,
+        #         if: ->(*) {
+        #           view_time_entries_allowed?
+        #         },
+        #         uncacheable: true
 
         #property :done_ratio,
         #         as: :percentageDone,

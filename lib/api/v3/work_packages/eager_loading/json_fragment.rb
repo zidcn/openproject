@@ -142,14 +142,27 @@ module API
               end.join(', ')
             end
 
-            def action_links_ctes
-              admin_checked_action_links
-                .values
-                .map { |options| options[:permission] }
+            #def action_links_ctes
+            #  admin_checked_action_links
+            #    .values
+            #    .map { |options| options[:permission] }
+            #end
+
+            def all_ctes
+              permissions = admin_checked_action_links
+                            .values
+                            .map { |options| options[:permission] }
+
+              # for spent time
+              permissions << :view_time_entries
+
+              permissions
                 .compact
-                .uniq.map do |permission|
-                "#{permission}_projects AS (#{::Project.allowed_to(User.current, permission).select(:id).to_sql})"
-              end.join(', ')
+                .uniq
+                .map do |permission|
+                  "#{permission}_projects AS (#{::Project.allowed_to(User.current, permission).select(:id).to_sql})"
+                end
+                .join(', ')
             end
 
             protected
@@ -289,6 +302,10 @@ module API
 
           property :derivedEstimatedTime,
                    representation: -> { "make_interval(mins := CAST(work_packages.derived_estimated_hours * 60 as int))" }
+
+          property :spentTime,
+                   representation: -> { "make_interval(mins := CAST(spent_time.hours * 60 as int))" },
+                   render_if: -> { "work_packages.project_id IN (SELECT id FROM view_time_entries_projects)"}
 
           action_link :self,
                       path: { api: :work_package, params: %w(id) },
@@ -518,7 +535,7 @@ module API
             sql = <<-SQL
                WITH view_work_packages_projects AS (#{::Project.allowed_to(User.current, :view_work_packages).select(:id).to_sql}),
                     watcher_users AS (SELECT users.*, watchable_id FROM users JOIN watchers ON watchers.watchable_id IN (#{work_packages.map(&:id).join(', ')}) AND watchable_type = 'WorkPackage' AND watchers.user_id = users.id	),
-                    #{self.class.action_links_ctes}
+                    #{self.class.all_ctes}
 
                SELECT
                  work_packages.id,
@@ -650,6 +667,10 @@ module API
                 ORDER BY custom_actions.position ASC ) custom_actions
                 GROUP BY custom_actions.id
               ) custom_actions on custom_actions.id = work_packages.id
+              LEFT OUTER JOIN
+              (
+                #{API::V3::WorkPackages::WorkPackageEagerLoadingWrapper.add_eager_loading(WorkPackage.where(id: work_packages.map(&:id)), User.current).except(:select).select(:id, 'spent_time_hours.hours').to_sql}
+              ) spent_time ON spent_time.id = work_packages.id
               WHERE work_packages.id IN (#{work_packages.map(&:id).join(', ')})
             SQL
 
