@@ -384,7 +384,7 @@ module API
           action_link :revisions,
                       path: { api: :work_package_revisions, params: %w(id) }
 
-          action_link :available_watchers,
+          action_link :availableWatchers,
                       path: { api: :available_watchers, params: %w(id) },
                       permission: :add_work_package_watchers
 
