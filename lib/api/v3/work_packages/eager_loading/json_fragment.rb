@@ -35,6 +35,7 @@ module API
         class JsonFragment < Base
           extend ::API::V3::Utilities::PathHelper
           include ::API::V3::Utilities::PathHelper
+          include OpenProject::TextFormatting
 
           def apply(work_package)
             work_package.json_representer_fragment = json_representer_for(work_package.id)
@@ -549,6 +550,7 @@ module API
                  work_packages.id,
                  json_build_object(
                    #{self.class.properties_sql},
+                   'description', description.description,
                    '_links', json_strip_nulls(
                      json_build_object('children', COALESCE(children.children, '[]'),
                                        'ancestors', COALESCE(ancestors.ancestors, '[]'),
@@ -679,10 +681,28 @@ module API
               (
                 #{API::V3::WorkPackages::WorkPackageEagerLoadingWrapper.add_eager_loading(WorkPackage.where(id: work_packages.map(&:id)), User.current).except(:select).select(:id, 'spent_time_hours.hours').to_sql}
               ) spent_time ON spent_time.id = work_packages.id
+              LEFT OUTER JOIN
+              (#{description_union}) description ON description.id = work_packages.id
               WHERE work_packages.id IN (#{work_packages.map(&:id).join(', ')})
             SQL
 
             ActiveRecord::Base.connection.select_all(sql).to_a.map(&:values).to_h
+          end
+
+          def description_union
+            work_packages.map do |work_package|
+              formatted_description = OpenProject::Cache.fetch('API::V3::WorkPackages::WorkPackageRepresenter', 'description', work_package) do
+                format_text(work_package.description, format: :markdown, object: work_package)
+              end
+
+              <<-SQL
+                SELECT
+                  #{work_package.id} AS id,
+                  json_build_object('format', 'markdown',
+                                    'raw', '#{work_package.description}',
+                                    'html', '#{formatted_description}') as description
+              SQL
+            end.join(' UNION ALL ')
           end
 
           def url_helpers

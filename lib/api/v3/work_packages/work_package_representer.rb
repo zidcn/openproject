@@ -61,7 +61,7 @@ module API
         #property :subject,
         #         render_nil: true
 
-        formattable_property :description
+        #formattable_property :description
 
         #date_property :start_date,
         #              skip_render: ->(represented:, **) {
