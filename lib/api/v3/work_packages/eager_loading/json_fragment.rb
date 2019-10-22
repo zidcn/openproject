@@ -699,8 +699,8 @@ module API
                 SELECT
                   #{work_package.id} AS id,
                   json_build_object('format', 'markdown',
-                                    'raw', '#{work_package.description}',
-                                    'html', '#{formatted_description}') as description
+                                    'raw', #{WorkPackage.connection.quote(work_package.description)},
+                                    'html', #{WorkPackage.connection.quote(formatted_description)}) as description
               SQL
             end.join(' UNION ALL ')
           end
