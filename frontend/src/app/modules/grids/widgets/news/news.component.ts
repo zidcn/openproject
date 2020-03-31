@@ -1,12 +1,9 @@
 import {AbstractWidgetComponent} from "core-app/modules/grids/widgets/abstract-widget.component";
-import {Component, OnInit, ChangeDetectorRef, Injector, ChangeDetectionStrategy} from '@angular/core';
+import {ChangeDetectionStrategy, Component, Injector, OnInit} from '@angular/core';
 import {I18nService} from "core-app/modules/common/i18n/i18n.service";
-import {HalResourceService} from "core-app/modules/hal/services/hal-resource.service";
 import {PathHelperService} from "core-app/modules/common/path-helper/path-helper.service";
 import {TimezoneService} from "core-components/datetime/timezone.service";
 import {NewsResource} from "core-app/modules/hal/resources/news-resource";
-import {UserCacheService} from "core-components/user/user-cache.service";
-import {UserResource} from "core-app/modules/hal/resources/user-resource";
 import {NewsDmService} from "core-app/modules/hal/dm-services/news-dm.service";
 import {CurrentProjectService} from "core-components/projects/current-project.service";
 import {DmListParameter} from "core-app/modules/hal/dm-services/dm.service.interface";
@@ -25,36 +22,24 @@ export class WidgetNewsComponent extends AbstractWidgetComponent implements OnIn
   public entries:NewsResource[] = [];
   private entriesLoaded = false;
 
-  constructor(readonly halResource:HalResourceService,
-              readonly pathHelper:PathHelperService,
+  constructor(readonly pathHelper:PathHelperService,
               readonly i18n:I18nService,
               protected readonly injector:Injector,
               readonly timezone:TimezoneService,
-              readonly userCache:UserCacheService,
               readonly newsDm:NewsDmService,
-              readonly currentProject:CurrentProjectService,
-              readonly cdr:ChangeDetectorRef) {
+              readonly currentProject:CurrentProjectService) {
     super(i18n, injector);
   }
 
   ngOnInit() {
     this.newsDm
       .list(this.newsDmParams)
-      .then((collection) => {
-        
-      var dsd=collection.elements ;
-          this.setupNews(dsd);
-      });
+      .then(collection => this.setupNews(collection.elements));
   }
 
   public setupNews(news:any[]) {
     this.entries = news;
     this.entriesLoaded = true;
-
-    const users_loaded = this.setAuthors();
-
-    Promise.all(users_loaded)
-      .then(() => this.cdr.detectChanges());
   }
 
   public get isEditable() {
@@ -62,7 +47,7 @@ export class WidgetNewsComponent extends AbstractWidgetComponent implements OnIn
   }
 
   public newsPath(news:NewsResource) {
-   // return this.pathHelper.newsPath(news.id!);
+    // return this.pathHelper.newsPath(news.id!);
   }
 
   public newsProjectPath(news:NewsResource) {
@@ -89,23 +74,11 @@ export class WidgetNewsComponent extends AbstractWidgetComponent implements OnIn
     return !this.entries.length && this.entriesLoaded;
   }
 
-  public setAuthors() {
-    return this.entries.map((entry) => {
-      if (!entry.author) {
-        return Promise.resolve();
-      }
-
-      return this.userCache
-        .require(entry.author.idFromLink)
-        .then((user:UserResource) => {
-          entry.author = user;
-        });
-    });
-  }
-
   private get newsDmParams() {
-    let params:DmListParameter = { sortBy: [['created_at', 'desc']],
-                                   pageSize: 3 };
+    let params:DmListParameter = {
+      sortBy: [['created_at', 'desc']],
+      pageSize: 3
+    };
 
     if (this.currentProject.id) {
       params['filters'] = [['project_id', '=', [this.currentProject.id]]];
